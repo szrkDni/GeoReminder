@@ -4,12 +4,12 @@ plugins {
 
 android {
     namespace = "com.example.gmapapplication"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.gmapapplication"
         minSdk = 29
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -41,6 +41,7 @@ dependencies {
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     implementation("com.google.android.gms:play-services-maps:18.2.0")
     implementation("com.google.android.gms:play-services-location:21.3.0")
-    implementation("com.google.android.material:material:1.0.0")
     implementation("com.google.maps.android:android-maps-utils:3.8.0")
+    implementation("androidx.core:core-ktx:1.16.0")
+
 }

@@ -1,31 +1,26 @@
 package com.example.gmapapplication;
 
 import android.Manifest;
-import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.drawable.Drawable;
 import android.location.Address;
 import android.location.Geocoder;
+import android.location.Location;
 import android.location.LocationManager;
 import android.provider.Settings;
-import android.view.ViewGroup;
 import android.widget.Toast;
 
 import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.BitmapDescriptor;
-import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.tasks.CancellationTokenSource;
 
@@ -42,6 +37,8 @@ public class Tracker {
     private final SupportMapFragment mapFragment;
     private final FusedLocationProviderClient fusedClient;
     private final LocationManager locManager;
+    private LocationCallback continuousCallback;
+
     private final CancellationTokenSource tokenSource = new CancellationTokenSource();
     private Callback callback;
 
@@ -84,7 +81,7 @@ public class Tracker {
                 tokenSource.getToken()
         ).addOnSuccessListener(location -> {
             if (location != null && callback != null) {
-                Calculation.currentLocation = location;
+                Calculation.currentLocation = new LatLng(location.getLatitude(),location.getLongitude());
                 callback.onLocationReady();
             } else {
                 Toast.makeText(ctx, "Helyadat lekérés sikertelen", Toast.LENGTH_SHORT).show();
@@ -98,27 +95,57 @@ public class Tracker {
         });
     }
 
-    public void startContinuousUpdates() {
-        if (ActivityCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED
-                || ActivityCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_COARSE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-            return;
-        }
+    public void startContinuousUpdates(OnLocationUpdateListener listener) {
+        // ... permission checks omitted
         LocationRequest req = LocationRequest.create()
                 .setInterval(5000)
                 .setFastestInterval(2000)
                 .setPriority(Priority.PRIORITY_HIGH_ACCURACY);
 
-        fusedClient.requestLocationUpdates(req, loc -> {
-            Calculation.currentLocation = loc;
-        }, ctx.getMainLooper());
+        if (ActivityCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED
+                || ActivityCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_COARSE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                    (MainActivity) ctx,
+                    new String[]{
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                    },
+                    MainActivity.PERMISSION_REQUEST
+            );
+            return;
+        }
+
+        // Create and store one LocationCallback
+        continuousCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(LocationResult result) {
+                super.onLocationResult(result);
+                Location loc = result.getLastLocation();
+                if (listener != null) listener.onLocationUpdate(loc);
+            }
+        };
+
+        fusedClient.requestLocationUpdates(req, continuousCallback, ctx.getMainLooper());
     }
 
-    public void stopUpdates() {
-        tokenSource.cancel();
-        fusedClient.removeLocationUpdates(location -> {});
+    public interface OnLocationUpdateListener {
+        void onLocationUpdate(Location loc);
     }
+
+
+    public void stopUpdates() {
+        // cancel the one‑time request
+        tokenSource.cancel();
+
+        // unregister the continuous callback
+        if (continuousCallback != null) {
+            fusedClient.removeLocationUpdates(continuousCallback);
+            continuousCallback = null;
+        }
+    }
+
 
     public String getCityName(LatLng pos) {
         try {
