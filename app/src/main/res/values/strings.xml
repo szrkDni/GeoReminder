@@ -7,4 +7,5 @@
     <string name="okayButtonText">Okay</string>
     <string name="channel_name">c1</string>
     <string name="channel_description">notification</string>
+    <string name="clearButtonText">x</string>
 </resources>

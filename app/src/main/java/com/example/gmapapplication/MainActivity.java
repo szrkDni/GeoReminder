@@ -7,6 +7,8 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.lifecycle.LiveData;
+import androidx.room.Room;
 
 import android.Manifest;
 import android.app.Dialog;
@@ -27,6 +29,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -36,6 +39,9 @@ import android.widget.SearchView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.example.gmapapplication.data.GMapDAO;
+import com.example.gmapapplication.data.GMapDatabase;
+import com.example.gmapapplication.data.GMapItem;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
@@ -44,7 +50,10 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MapStyleOptions;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity
         implements OnMapReadyCallback, Tracker.Callback {
@@ -61,6 +70,7 @@ public class MainActivity extends AppCompatActivity
     private TextView city1, city2, approximateDistanceText;
     private Dialog dialogBox;
     private Button okayBtn;
+    private Button clearBtn;
     private ImageView arrowImg;
 
     public double distance;
@@ -71,6 +81,10 @@ public class MainActivity extends AppCompatActivity
     private Vibrator vibrator;
     private MediaPlayer mediaPlayer;
     private boolean isAlerting = false;
+
+    private GMapDatabase database = null;
+    private GMapDAO dao;
+    private Executor bgExecutor = Executors.newSingleThreadExecutor();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,10 +99,10 @@ public class MainActivity extends AppCompatActivity
         city1 = findViewById(R.id.startingCity);
         city2 = findViewById(R.id.destinationCity);
         controlButton = findViewById(R.id.StartButon);
+        clearBtn = findViewById(R.id.clearButton);
         approximateDistanceText = findViewById(R.id.approximateDistance);
         arrowImg = findViewById(R.id.arrowImg);
 
-        destinationsContainer.setVisibility(LinearLayout.INVISIBLE);
         controlButton.setVisibility(Button.INVISIBLE);
 
         arrowImg.setVisibility(ImageView.INVISIBLE);
@@ -111,6 +125,13 @@ public class MainActivity extends AppCompatActivity
         mediaPlayer = MediaPlayer.create(this, R.raw.alarm_sound);
         mediaPlayer.setLooping(true);
 
+        database = Room.databaseBuilder(this, GMapDatabase.class, "Gmap_db")
+                .fallbackToDestructiveMigration()
+                .build();
+
+        dao = database.gmapDAO();
+
+
 
         // Engedélyek kérése
         ActivityCompat.requestPermissions(this, new String[]{
@@ -131,43 +152,27 @@ public class MainActivity extends AppCompatActivity
             public boolean onQueryTextSubmit(String query) {
                 String givenLocationString = mapSearchView.getQuery().toString();
                 mapSearchView.setIconified(true);
-                List<Address> addressesList = null;
 
 
-                Geocoder geocoder = new Geocoder(MainActivity.this);
-
-                try {
-                    addressesList = geocoder.getFromLocationName(givenLocationString,1);
-                } catch (Exception e) {
-                    dialogBox.show();
-                }
-
-
-                try {
-                    destinationAddress = addressesList.get(0);
-
-                }catch (Exception e){
-                    dialogBox.show();
-                }
+                destinationAddress = geocodeAndSetDestination(givenLocationString);
 
 
                 if (destinationAddress != null) {
 
-                    LatLng newLatlng = new LatLng(destinationAddress.getLatitude(),destinationAddress.getLongitude());
+                    bgExecutor.execute(() -> {
+                        GMapItem item = new GMapItem();
+                        item.setId(1);
+                        item.setCity(givenLocationString);
+                        dao.insertItem(item);
+                    });
 
-                    Calculation.destination = newLatlng;
 
-                    uiUtils.updateMarkers(getCurrentLatLng(), newLatlng,
-                            R.drawable.baseline_person_pin_24, R.drawable.baseline_place_24);
-
+                    uiUtils.update();
 
                     city2.setText(givenLocationString);
                     destinationsContainer.setVisibility(View.VISIBLE);
                     controlButton.setVisibility(View.VISIBLE);
                     arrowImg.setVisibility(ImageView.VISIBLE);
-
-                    uiUtils.updateDistance(distanceInKm(newLatlng));
-
 
                 }
 
@@ -178,6 +183,8 @@ public class MainActivity extends AppCompatActivity
         });
 
         controlButton.setOnClickListener(v -> toggleTracking());
+        clearBtn.setOnClickListener(v -> clearData());
+
     }
 
 
@@ -201,6 +208,19 @@ public class MainActivity extends AppCompatActivity
             tracker.stopUpdates();
             stopAlert();
         }
+    }
+
+    private void clearData() {
+        bgExecutor.execute(() -> {
+            dao.clearDB();
+        });
+        runOnUiThread(() -> {
+
+            controlButton.setVisibility(View.INVISIBLE);
+            arrowImg.setVisibility(View.INVISIBLE);
+            city2.setText("");
+            approximateDistanceText.setText("");
+        });
     }
 
     public void showNotification(String title, String description, double distance)
@@ -264,7 +284,18 @@ public class MainActivity extends AppCompatActivity
 
 
         city1.setText(tracker.getCityName(here));
-        destinationsContainer.setVisibility(LinearLayout.VISIBLE);
+
+        dao.getItem().observe(this, item -> {
+            if (item != null) {
+
+                geocodeAndSetDestination(item.getCity());
+
+                city2.setText(item.getCity());
+                controlButton.setVisibility(View.VISIBLE);
+                arrowImg.setVisibility(View.VISIBLE);
+                uiUtils.update();
+            }
+        });
     }
 
     @Override
@@ -305,6 +336,25 @@ public class MainActivity extends AppCompatActivity
             mediaPlayer = MediaPlayer.create(this, R.raw.alarm_sound);
             mediaPlayer.setLooping(true);
         }
+    }
+
+
+    private Address geocodeAndSetDestination(String city) {
+        List<Address> addressesList = null;
+        Geocoder geocoder = new Geocoder(this);
+
+        try {
+            addressesList = geocoder.getFromLocationName(city, 1);
+            Address destinationAddress = addressesList.get(0);
+
+            Calculation.destination = new LatLng(destinationAddress.getLatitude(), destinationAddress.getLongitude());
+
+            return destinationAddress;
+        } catch (IOException | IndexOutOfBoundsException e) {
+            dialogBox.show();
+        }
+
+        return null;
     }
 
 

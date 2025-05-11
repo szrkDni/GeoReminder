@@ -136,6 +136,17 @@
         app:layout_constraintStart_toStartOf="@+id/relativeLayout"
         app:layout_constraintTop_toBottomOf="@+id/startDestLinear" />
 
+    <Button
+        android:id="@+id/clearButton"
+        android:layout_width="59dp"
+        android:layout_height="44dp"
+        android:backgroundTint="@color/orange"
+        android:text="@string/clearButtonText"
+        android:textColor="@color/white"
+        app:layout_constraintBottom_toTopOf="@+id/mapCardView"
+        app:layout_constraintEnd_toStartOf="@+id/guideline"
+        app:layout_constraintTop_toBottomOf="@+id/startDestLinear" />
+
     <androidx.constraintlayout.widget.Guideline
         android:id="@+id/guideline"
         android:layout_width="wrap_content"
