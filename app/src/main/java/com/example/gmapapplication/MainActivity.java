@@ -273,15 +273,6 @@ public class MainActivity extends AppCompatActivity
 
     }
 
-    private BitmapDescriptor icon(Context ctx, int drawableId) {
-        Drawable d = ContextCompat.getDrawable(ctx, drawableId);
-        int w = d.getIntrinsicWidth()*2, h = d.getIntrinsicHeight()*2;
-        d.setBounds(0,0,w,h);
-        Bitmap bmp = Bitmap.createBitmap(w,h, Bitmap.Config.ARGB_8888);
-        d.draw(new Canvas(bmp));
-        return BitmapDescriptorFactory.fromBitmap(bmp);
-    }
-
     private void startAlert() {
         if (isAlerting) return;
         isAlerting = true;

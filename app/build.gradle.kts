@@ -1,7 +1,14 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
 }
 
+val localePropsFile = rootProject.file("local.properties")
+val localeProperties = Properties().apply {
+    load(FileInputStream(localePropsFile))
+}
 android {
     namespace = "com.example.gmapapplication"
     compileSdk = 35
@@ -14,6 +21,11 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Makes MAP_API_KEY available for manifest merging
+        manifestPlaceholders += mapOf(
+            "MAP_API_KEY" to localeProperties.getProperty("MAP_API_KEY")
+        )
     }
 
     buildTypes {
@@ -32,6 +44,11 @@ android {
 }
 
 dependencies {
+
+    val room_version = "2.6.1"
+
+    implementation("androidx.room:room-runtime:$room_version")
+    annotationProcessor("androidx.room:room-compiler:$room_version")
 
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
