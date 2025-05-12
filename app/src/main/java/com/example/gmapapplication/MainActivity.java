@@ -104,7 +104,6 @@ public class MainActivity extends AppCompatActivity
         arrowImg = findViewById(R.id.arrowImg);
 
         controlButton.setVisibility(Button.INVISIBLE);
-
         arrowImg.setVisibility(ImageView.INVISIBLE);
 
         // Hibadialog beállítása
@@ -121,9 +120,10 @@ public class MainActivity extends AppCompatActivity
 
 
         vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
-
         mediaPlayer = MediaPlayer.create(this, R.raw.alarm_sound);
         mediaPlayer.setLooping(true);
+
+
 
         database = Room.databaseBuilder(this, GMapDatabase.class, "Gmap_db")
                 .fallbackToDestructiveMigration()
@@ -170,7 +170,6 @@ public class MainActivity extends AppCompatActivity
                     uiUtils.update();
 
                     city2.setText(givenLocationString);
-                    destinationsContainer.setVisibility(View.VISIBLE);
                     controlButton.setVisibility(View.VISIBLE);
                     arrowImg.setVisibility(ImageView.VISIBLE);
 
